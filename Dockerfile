@@ -1,4 +1,4 @@
-FROM renkulab/renku:latest
+FROM renku/renkulab-py:3.11-0.25.0
 
 USER root
 
