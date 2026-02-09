@@ -17,7 +17,6 @@ dependencies:
   - joblib
   - scikit-image
   - statsmodels
+  - laynii
   - pip:
-      # ENIGMA toolbox: prefer GitHub install (see Dockerfile below) if you want pinning;
-      # leaving blank here avoids accidental pip "enigma" installs.
       - packaging
