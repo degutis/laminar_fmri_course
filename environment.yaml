@@ -1,0 +1,23 @@
+name: layerfmri-course
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - pip
+  - numpy
+  - scipy
+  - pandas
+  - matplotlib
+  - scikit-learn
+  - nibabel
+  - nilearn
+  - jupyterlab
+  - ipykernel
+  - tqdm
+  - joblib
+  - scikit-image
+  - statsmodels
+  - pip:
+      # ENIGMA toolbox: prefer GitHub install (see Dockerfile below) if you want pinning;
+      # leaving blank here avoids accidental pip "enigma" installs.
+      - packaging
