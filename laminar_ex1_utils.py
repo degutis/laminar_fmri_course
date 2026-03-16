@@ -17,8 +17,10 @@ import shutil
 import subprocess
 from pathlib import Path
 from typing import Optional, Sequence, Tuple
-
+import io
+from IPython.display import Image, display
 import imageio.v2 as imageio
+
 import matplotlib.pyplot as plt
 import nibabel as nib
 import numpy as np
@@ -68,12 +70,12 @@ def _default_slice_indices(data: np.ndarray, axis: int, n_slices: int = 24) -> n
 def make_alignment_gif(
     t1_path: str | os.PathLike,
     func_mean_path: str | os.PathLike,
-    output_gif: str | os.PathLike,
+    output_gif: Optional[str | os.PathLike] = None,
     axis: int = 2,
-    frame_duration: float = 1.5,   # seconds per frame
+    frame_duration: float = 1.5,
     n_slices: int = 24,
-    add_checkerboard: bool = False,
-) -> Path:
+    show: bool = True,
+):
     t1, _ = load_nifti(t1_path)
     func, _ = load_nifti(func_mean_path)
 
@@ -108,27 +110,28 @@ def make_alignment_gif(
         frames.append(np.asarray(fig.canvas.renderer.buffer_rgba())[:, :, :3])
         plt.close(fig)
 
-        if add_checkerboard:
-            checker = ((np.indices(t1_slice.shape).sum(axis=0) % 2) == 0)
-            blend = np.where(checker, t1_slice, func_slice)
-            fig, ax = plt.subplots(figsize=(5, 5))
-            ax.imshow(blend, cmap="gray", origin="lower")
-            ax.set_title(f"Checkerboard fusion | slice {idx}")
-            ax.axis("off")
-            fig.tight_layout()
-            fig.canvas.draw()
-            frames.append(np.asarray(fig.canvas.renderer.buffer_rgba())[:, :, :3])
-            plt.close(fig)
+    if output_gif is not None:
+        output_gif = Path(output_gif)
+        output_gif.parent.mkdir(parents=True, exist_ok=True)
+        imageio.mimsave(output_gif, frames, duration=frame_duration, loop=0)
+        if show:
+            display(Image(filename=str(output_gif)))
+        return output_gif
 
-    output_gif = Path(output_gif)
-    output_gif.parent.mkdir(parents=True, exist_ok=True)
-    imageio.mimsave(output_gif, frames, duration=frame_duration, loop=0)
-    return output_gif
+    buffer = io.BytesIO()
+    imageio.mimsave(buffer, frames, format="GIF", duration=frame_duration, loop=0)
+    gif_bytes = buffer.getvalue()
+
+    if show:
+        display(Image(data=gif_bytes))
+
+    return gif_bytes
+
 
 def plot_overlay_on_t1(
     t1_path: str | os.PathLike,
     overlay_path: str | os.PathLike,
-    output_png: str | os.PathLike,
+    output_png: Optional[str | os.PathLike] = None,
     axis: int = 2,
     slices: Optional[Sequence[int]] = None,
     ncols: int = 4,
@@ -136,7 +139,8 @@ def plot_overlay_on_t1(
     cmap_name: str = "viridis",
     title: Optional[str] = None,
     threshold: float = 0.0,
-) -> Path:
+    show: bool = True,
+):
     t1, _ = load_nifti(t1_path)
     overlay, _ = load_nifti(overlay_path)
 
@@ -155,6 +159,7 @@ def plot_overlay_on_t1(
         t1_slice = _normalize_slice(_get_slice(t1, axis, idx))
         overlay_slice = _get_slice(overlay, axis, idx).astype(float)
         masked = np.ma.masked_where(np.abs(overlay_slice) <= threshold, overlay_slice)
+
         ax.imshow(t1_slice, cmap="gray", origin="lower")
         ax.imshow(masked, cmap=cmap_name, alpha=alpha, origin="lower", interpolation="nearest")
         ax.set_title(f"slice {idx}")
@@ -167,17 +172,23 @@ def plot_overlay_on_t1(
         fig.suptitle(title, fontsize=14, y=0.98)
 
     fig.tight_layout()
-    output_png = Path(output_png)
-    output_png.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(output_png, dpi=180, bbox_inches="tight")
-    plt.close(fig)
-    return output_png
 
+    if output_png is not None:
+        output_png = Path(output_png)
+        output_png.parent.mkdir(parents=True, exist_ok=True)
+        fig.savefig(output_png, dpi=180, bbox_inches="tight")
+
+    if show:
+        plt.show()
+    else:
+        plt.close(fig)
+
+    return fig
 
 def plot_discrete_overlay_on_t1(
     t1_path: str | os.PathLike,
     overlay_path: str | os.PathLike,
-    output_png: str | os.PathLike,
+    output_png: Optional[str | os.PathLike] = None,
     axis: int = 2,
     slices: Optional[Sequence[int]] = None,
     labels: Optional[Sequence[int]] = None,
@@ -185,7 +196,8 @@ def plot_discrete_overlay_on_t1(
     ncols: int = 4,
     alpha: float = 0.45,
     title: Optional[str] = None,
-) -> Path:
+    show: bool = True,
+):
     t1, _ = load_nifti(t1_path)
     overlay, _ = load_nifti(overlay_path)
 
@@ -213,13 +225,23 @@ def plot_discrete_overlay_on_t1(
     for ax, idx in zip(axes, slices):
         t1_slice = _normalize_slice(_get_slice(t1, axis, idx))
         overlay_slice = _get_slice(overlay, axis, idx)
+
         mapped = np.full_like(overlay_slice, np.nan, dtype=float)
         for lab in labels:
             mapped[overlay_slice == lab] = label_to_index[lab]
+
         masked = np.ma.masked_invalid(mapped)
+
         ax.imshow(t1_slice, cmap="gray", origin="lower")
-        ax.imshow(masked, cmap=cmap, alpha=alpha, origin="lower", interpolation="nearest",
-                  vmin=0, vmax=max(len(labels)-1, 1))
+        ax.imshow(
+            masked,
+            cmap=cmap,
+            alpha=alpha,
+            origin="lower",
+            interpolation="nearest",
+            vmin=0,
+            vmax=max(len(labels) - 1, 1),
+        )
         ax.set_title(f"slice {idx}")
         ax.axis("off")
 
@@ -230,12 +252,18 @@ def plot_discrete_overlay_on_t1(
         fig.suptitle(title, fontsize=14, y=0.98)
 
     fig.tight_layout()
-    output_png = Path(output_png)
-    output_png.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(output_png, dpi=180, bbox_inches="tight")
-    plt.close(fig)
-    return output_png
 
+    if output_png is not None:
+        output_png = Path(output_png)
+        output_png.parent.mkdir(parents=True, exist_ok=True)
+        fig.savefig(output_png, dpi=180, bbox_inches="tight")
+
+    if show:
+        plt.show()
+    else:
+        plt.close(fig)
+
+    return fig
 
 def run_laynii_layers(
     rim_path: str | os.PathLike,
