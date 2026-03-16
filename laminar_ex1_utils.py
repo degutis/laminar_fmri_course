@@ -125,7 +125,7 @@ def make_alignment_gif(
     if show:
         display(Image(data=gif_bytes))
 
-    return gif_bytes
+    return None
 
 
 def plot_overlay_on_t1(
@@ -300,17 +300,3 @@ def run_laynii_layers(
     print(" ".join(cmd))
     subprocess.run(cmd, check=True)
     return output_path
-
-
-def simple_rgb_overlay(
-    background: np.ndarray,
-    mask: np.ndarray,
-    color: Tuple[float, float, float] = (1.0, 0.2, 0.2),
-    alpha: float = 0.45,
-) -> np.ndarray:
-    bg = _normalize_slice(background)
-    rgb = np.dstack([bg, bg, bg])
-    mask = mask.astype(bool)
-    for c in range(3):
-        rgb[..., c] = np.where(mask, (1 - alpha) * rgb[..., c] + alpha * color[c], rgb[..., c])
-    return np.clip(rgb, 0, 1)
