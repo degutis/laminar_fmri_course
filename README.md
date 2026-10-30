@@ -66,4 +66,4 @@ For the Exercise 2 data:
 
 ## License
 
-MIT for the code and CC BY 4.0 for the notebooks and text. 
+MIT 2026 
